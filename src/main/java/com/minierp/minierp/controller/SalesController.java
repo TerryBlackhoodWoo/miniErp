@@ -22,4 +22,15 @@ public class SalesController {
     public Sales create(@RequestBody Sales sales){
         return salesRepository.save(sales);
     }
+
+    @PutMapping("/{id}")
+    public Sales update(@PathVariable Integer id, @RequestBody Sales sales) {
+        sales.setSaleId(id);
+        return salesRepository.save(sales);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Integer id) {
+        salesRepository.deleteById(id);
+    }
 }

@@ -22,4 +22,15 @@ public class StoreController {
     public Store create(@RequestBody Store store){
         return storeRepository.save(store);
     }
+
+    @PutMapping("/{id}")
+    public Store update(@PathVariable Integer id, @RequestBody Store store) {
+        store.setStoreId(id);
+        return storeRepository.save(store);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Integer id) {
+        storeRepository.deleteById(id);
+    }
 }

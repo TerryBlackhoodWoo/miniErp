@@ -22,4 +22,14 @@ public class InventoryController {
     public Inventory create(@RequestBody Inventory inventory){
         return inventoryRepository.save(inventory);
     }
+    @PutMapping("/{id}")
+    public Inventory update(@PathVariable Integer id, @RequestBody Inventory inventory) {
+        inventory.setInvId(id);
+        return inventoryRepository.save(inventory);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Integer id) {
+        inventoryRepository.deleteById(id);
+    }
 }

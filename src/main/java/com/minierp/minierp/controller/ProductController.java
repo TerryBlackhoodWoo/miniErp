@@ -22,4 +22,14 @@ public class ProductController {
     public Product create(@RequestBody Product product){
         return productRepository.save(product);
     }
+    @PutMapping("/{id}")
+    public Product update(@PathVariable String id, @RequestBody Product product) {
+        product.setProductNo(id);
+        return productRepository.save(product);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable String id) {
+        productRepository.deleteById(id);
+    }
 }

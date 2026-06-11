@@ -22,4 +22,14 @@ public class ProductDocumentController {
     public ProductDocument create(@RequestBody ProductDocument productDocument){
         return productDocumentRepository.save(productDocument);
     }
+    @PutMapping("/{id}")
+    public ProductDocument update(@PathVariable Integer id, @RequestBody ProductDocument productDocument) {
+        productDocument.setDocId(id);
+        return productDocumentRepository.save(productDocument);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Integer id) {
+        productDocumentRepository.deleteById(id);
+    }
 }

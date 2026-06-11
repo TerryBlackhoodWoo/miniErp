@@ -22,4 +22,15 @@ public class WarehouseController {
     public Warehouse create(@RequestBody Warehouse warehouse){
         return warehouseRepository.save(warehouse);
     }
+
+    @PutMapping("/{id}")
+    public Warehouse update(@PathVariable Integer id, @RequestBody Warehouse warehouse) {
+        warehouse.setWarehouseId(id);
+        return warehouseRepository.save(warehouse);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Integer id) {
+        warehouseRepository.deleteById(id);
+    }
 }

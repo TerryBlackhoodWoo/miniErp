@@ -22,4 +22,16 @@ public class BrandController {
     public Brand create(@RequestBody Brand brand){
         return brandRepository.save(brand);
     }
+
+    @PutMapping("/{id}")
+    public Brand update(@PathVariable String id, @RequestBody Brand brand) {
+        brand.setBrandCd(id);
+        return brandRepository.save(brand);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable String id) {
+        brandRepository.deleteById(id);
+    }
+
 }

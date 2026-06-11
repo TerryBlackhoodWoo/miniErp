@@ -182,7 +182,7 @@ miniERP/
 - [x] Repository 작성 (13개 - JpaRepository)
 - [x] REST API 개발 (13개 Controller - GET/POST)
 - [x] Spring Security 설정 (개발용 전체 허용)
-- [ ] PUT/DELETE API 추가
+- [x] PUT/DELETE API 추가
 - [ ] Service 레이어 비즈니스 로직
 - [ ] React 프론트엔드
 - [ ] 배포 (Supabase + Railway + Vercel)

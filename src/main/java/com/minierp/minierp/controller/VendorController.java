@@ -22,4 +22,15 @@ public class VendorController {
     public Vendor create(@RequestBody Vendor vendor){
         return vendorRepository.save(vendor);
     }
+
+    @PutMapping("/{id}")
+    public Vendor update(@PathVariable String id, @RequestBody Vendor vendor) {
+        vendor.setVendorCd(id);
+        return vendorRepository.save(vendor);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable String id) {
+        vendorRepository.deleteById(id);
+    }
 }

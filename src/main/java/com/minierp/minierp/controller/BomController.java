@@ -22,4 +22,15 @@ public class BomController {
     public Bom create(@RequestBody Bom bom){
         return bomRepository.save(bom);
     }
+
+    @PutMapping("/{id}")
+    public Bom update(@PathVariable Integer id, @RequestBody Bom bom) {
+        bom.setBomId(id);
+        return bomRepository.save(bom);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Integer id) {
+        bomRepository.deleteById(id);
+    }
 }

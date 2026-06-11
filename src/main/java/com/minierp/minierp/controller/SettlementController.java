@@ -22,4 +22,15 @@ public class SettlementController {
     public Settlement create(@RequestBody Settlement settlement){
         return settlementRepository.save(settlement);
     }
+
+    @PutMapping("/{id}")
+    public Settlement update(@PathVariable Integer id, @RequestBody Settlement settlement) {
+        settlement.setSettlementId(id);
+        return settlementRepository.save(settlement);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Integer id) {
+        settlementRepository.deleteById(id);
+    }
 }

@@ -22,4 +22,15 @@ public class GwpController {
     public Gwp create(@RequestBody Gwp gwp){
         return gwpRepository.save(gwp);
     }
+
+    @PutMapping("/{id}")
+    public Gwp update(@PathVariable Integer id, @RequestBody Gwp gwp) {
+        gwp.setGwpId(id);
+        return gwpRepository.save(gwp);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Integer id) {
+        gwpRepository.deleteById(id);
+    }
 }

@@ -22,4 +22,15 @@ public class PromotionController {
     public Promotion create(@RequestBody Promotion promotion){
         return promotionRepository.save(promotion);
     }
+
+    @PutMapping("/{id}")
+    public Promotion update(@PathVariable Integer id, @RequestBody Promotion promotion) {
+        promotion.setPromoId(id);
+        return promotionRepository.save(promotion);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Integer id) {
+        promotionRepository.deleteById(id);
+    }
 }

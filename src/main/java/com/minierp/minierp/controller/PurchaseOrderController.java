@@ -22,4 +22,15 @@ public class PurchaseOrderController {
     public PurchaseOrder create(@RequestBody PurchaseOrder purchaseOrder){
         return purchaseOrderRepository.save(purchaseOrder);
     }
+
+    @PutMapping("/{id}")
+    public PurchaseOrder update(@PathVariable Integer id, @RequestBody PurchaseOrder purchaseOrder) {
+        purchaseOrder.setOrderId(id);
+        return purchaseOrderRepository.save(purchaseOrder);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Integer id) {
+        purchaseOrderRepository.deleteById(id);
+    }
 }
