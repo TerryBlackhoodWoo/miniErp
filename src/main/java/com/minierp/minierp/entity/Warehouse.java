@@ -8,8 +8,8 @@ import lombok.*;
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor
 @Builder
-
 public class Warehouse {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "warehouse_id")
@@ -17,4 +17,19 @@ public class Warehouse {
 
     @Column(name = "warehouse_nm", length = 200)
     private String warehouseNm;
+
+    @Column(name = "warehouse_type", length = 20)
+    private String warehouseType;
+
+    @Column(name = "location", length = 200)
+    private String location;
+
+    @Column(name = "manager", length = 50)
+    private String manager;
+
+    @Column(name = "phone", length = 20)
+    private String phone;
+
+    @Column(name = "status", length = 10)
+    private String status;
 }
