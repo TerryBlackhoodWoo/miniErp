@@ -5,61 +5,64 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.*;
-
 import java.math.BigDecimal;
 
 @Entity
 @Table(name = "product")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
 @Builder
-
 public class Product {
+
     @Id
     @Column(name = "product_no")
-    private String productNo; //품번(PK)
+    private String productNo;
 
     @Column(name = "brand_cd", nullable = false, length = 6)
-    private String brandCd; // 브랜드 코드(FK)
+    private String brandCd;
 
-    @Column(name = "vendor_cd", nullable = false,length = 6)
-    private String vendorCd; // 협력사 코드(FK)
+    @Column(name = "vendor_cd", nullable = false, length = 6)
+    private String vendorCd;
 
-    @Column(name = "product_nm_ko", nullable = false,length = 200)
-    private String productNmKo; // 상품명_한글
+    @Column(name = "product_nm_ko", nullable = false, length = 200)
+    private String productNmKo;
 
     @Column(name = "product_nm_en", length = 100)
-    private String productNmEn; // 상품명_영어
+    private String productNmEn;
 
     @Column(name = "capacity")
-    private BigDecimal capacity; // 용량
+    private BigDecimal capacity;
 
     @Column(name = "unit", length = 5)
-    private String unit; // 단위(EA,ml,g,cc,inch등)
+    private String unit;
 
     @Column(name = "barcode", length = 20)
-    private String barcode; // 바코드
+    private String barcode;
 
     @Column(name = "retail_price", nullable = false)
-    private BigDecimal  retailPrice; // 정상가
+    private BigDecimal retailPrice;
 
     @Column(name = "sale_price")
-    private BigDecimal  salePrice; // 판매가
+    private BigDecimal salePrice;
 
     @Column(name = "cost_price")
-    private BigDecimal  costPrice; // 매입원가(완사입)
+    private BigDecimal costPrice;
 
     @Column(name = "supply_cost")
-    private BigDecimal  supplyCost; // 공급원가(위탁)
+    private BigDecimal supplyCost;
 
     @Column(name = "mfg_cost")
-    private BigDecimal mfgCost; // 제조원가(자사)
+    private BigDecimal mfgCost;
 
     @Column(name = "cost_base", length = 10)
-    private String costBase; // RETAIL or SALE - 원가계산기준
+    private String costBase;
 
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
 
+    @Column(name = "qty_per_box")
+    private Integer qtyPerBox;       // 박스당 EA 수
 
+    @Column(name = "box_per_pallet")
+    private Integer boxPerPallet;    // 파레트당 박스 수
 }

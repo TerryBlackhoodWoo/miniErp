@@ -2,6 +2,7 @@ package com.minierp.minierp.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "warehouse")
@@ -32,4 +33,7 @@ public class Warehouse {
 
     @Column(name = "status", length = 10)
     private String status;
+
+    @Column(name = "cost_per_pallet")
+    private BigDecimal costPerPallet;  // 파레트당 물류비
 }

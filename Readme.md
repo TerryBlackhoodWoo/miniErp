@@ -5,7 +5,8 @@
 [![Java](https://img.shields.io/badge/Java-17-orange)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.6-brightgreen)](https://spring.io/projects/spring-boot)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-blue)](https://www.postgresql.org/)
-[![React](https://img.shields.io/badge/React-JSX-61dafb)](https://react.dev/)
+[![React](https://img.shields.io/badge/React-19-61dafb)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8-646cff)](https://vitejs.dev/)
 
 ---
 
@@ -27,9 +28,10 @@
 
 | 구분 | 기술 |
 |------|------|
-| Backend | Java 17, Spring Boot 4.0.6, Spring Data JPA, Spring Security |
-| Frontend | React, JSX (개발 예정) |
+| Backend | Java 17, Spring Boot 4.0.6, Spring Data JPA, Spring Security 7 |
+| Frontend | React 19, Vite 8, Axios, React Router |
 | Database | PostgreSQL 17 |
+| Auth | JWT (jjwt 0.12.6), BCrypt |
 | Build | Gradle |
 | 배포 | Supabase (DB), Railway (Backend), Vercel (Frontend) |
 
@@ -39,7 +41,10 @@
 
 > 인터랙티브 ERD: [miniERP_ERD_v2.html](./docs/miniERP_ERD_v2.html)
 
-### 테이블 구성 (14개)
+### 테이블 구성 (15개)
+
+**인증 영역**
+- `app_user` 시스템 사용자 (JWT 인증)
 
 **상품 영역**
 - `vendor` 협력사 / `brand` 브랜드 / `product` 상품
@@ -76,18 +81,38 @@
 → current_stock View로 실시간 현재고 조회
 ```
 
-### 3. 채널별 판매 추적
+### 3. 파레트 단위 물류비 자동계산
+```
+product: qty_per_box (박스당 EA) + box_per_pallet (파레트당 박스)
+warehouse: cost_per_pallet (파레트당 물류비)
+
+입고수량 입력 시:
+box_count     = CEIL(received_qty ÷ qty_per_box)
+pallet_count  = CEIL(box_count ÷ box_per_pallet)
+logistics_cost = pallet_count × cost_per_pallet  ← 자동계산
+```
+
+### 4. 채널별 판매 추적
 ```
 sales.channel = 'ONLINE' | 'OFFLINE'
 sales.order_no = 온라인 주문번호 (네이버, 쿠팡 등)
 → 플랫폼 API 연동 확장 가능 구조
 ```
 
-### 4. 면세점 정산 구조
+### 5. 면세점 정산 구조
 ```
 월마감 시 스냅샷 저장 방식
 기초재고 + 입고 - 반출 = 기말재고
 판매금액 → 공급가액 → 부가세 → 세금계산서 → 실지급액
+```
+
+### 6. 영업이익 계산 구조
+```
+매출액   = sale_qty × sale_price
+매출원가 = sale_qty × (cost_price or supply_cost)
+물류비   = 해당 기간 purchase_order.logistics_cost 합계
+─────────────────────────────────────────────────
+영업이익 = 매출액 - 매출원가 - 물류비
 ```
 
 ---
@@ -98,8 +123,9 @@ sales.order_no = 온라인 주문번호 (네이버, 쿠팡 등)
 - Java 17+
 - PostgreSQL 17+
 - Gradle
+- Node.js 18+ / Yarn
 
-### 설치 및 실행
+### 백엔드 실행
 
 ```bash
 # 레포 클론
@@ -112,33 +138,63 @@ CREATE DATABASE minierp;
 # DDL 실행
 psql -U postgres -d minierp -f docs/miniERP_final_v2.sql
 
-# application.yml 설정
-# src/main/resources/application.yml 생성 후 DB 비밀번호 입력
-# (application.yml은 .gitignore에 포함되어 있어 별도 생성 필요)
+# application.yml 설정 (gitignore 제외 - 직접 생성 필요)
+# src/main/resources/application.yml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/minierp
+    username: postgres
+    password: your_password
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+jwt:
+  secret: your-secret-key-32-chars-minimum!!
 
 # 서버 실행
 ./gradlew bootRun
 ```
 
+### 프론트엔드 실행
+
+```bash
+cd miniERP_frontend
+yarn install
+yarn dev
+```
+
 ### 접속
 ```
-http://localhost:8080
+http://localhost:5173
 ```
+
+> 기본 계정: 별도 app_user INSERT 필요 (BCrypt 해시 사용)
 
 ---
 
 ## API 엔드포인트
 
-> 현재 GET(전체조회) / POST(등록) 구현 완료
+### 인증
+| 메서드 | 엔드포인트 | 설명 |
+|--------|-----------|------|
+| POST | `/api/auth/login` | 로그인 → JWT 토큰 발급 |
 
+> 인증 이후 모든 요청에 `Authorization: Bearer {token}` 헤더 필요
+
+### 마스터 데이터
+| 도메인 | GET | POST | PUT | DELETE |
+|--------|-----|------|-----|--------|
+| 협력사 | `GET /api/vendors` | `POST /api/vendors` | `PUT /api/vendors/{id}` | `DELETE /api/vendors/{id}` |
+| 브랜드 | `GET /api/brands` | `POST /api/brands` | `PUT /api/brands/{id}` | `DELETE /api/brands/{id}` |
+| 상품 | `GET /api/products` | `POST /api/products` | `PUT /api/products/{id}` | `DELETE /api/products/{id}` |
+| 지점 | `GET /api/stores` | `POST /api/stores` | `PUT /api/stores/{id}` | `DELETE /api/stores/{id}` |
+| 창고 | `GET /api/warehouses` | `POST /api/warehouses` | `PUT /api/warehouses/{id}` | `DELETE /api/warehouses/{id}` |
+
+### 운영
 | 도메인 | GET | POST |
 |--------|-----|------|
-| 협력사 | `GET /api/vendors` | `POST /api/vendors` |
-| 브랜드 | `GET /api/brands` | `POST /api/brands` |
-| 상품 | `GET /api/products` | `POST /api/products` |
 | 상품서류 | `GET /api/product-documents` | `POST /api/product-documents` |
-| 지점 | `GET /api/stores` | `POST /api/stores` |
-| 창고 | `GET /api/warehouses` | `POST /api/warehouses` |
 | BOM | `GET /api/boms` | `POST /api/boms` |
 | GWP | `GET /api/gwps` | `POST /api/gwps` |
 | 프로모션 | `GET /api/promotions` | `POST /api/promotions` |
@@ -156,11 +212,12 @@ miniERP/
 ├── src/
 │   ├── main/
 │   │   ├── java/com/minierp/minierp/
-│   │   │   ├── entity/          # JPA Entity (13개)
-│   │   │   ├── repository/      # JpaRepository (13개)
+│   │   │   ├── auth/            # JWT 인증 (JwtUtil, JwtFilter, AuthController)
+│   │   │   ├── entity/          # JPA Entity (15개)
+│   │   │   ├── repository/      # JpaRepository (15개)
 │   │   │   ├── service/         # 비즈니스 로직 (예정)
-│   │   │   ├── controller/      # REST API (13개)
-│   │   │   └── SecurityConfig   # Spring Security 설정
+│   │   │   ├── controller/      # REST API (14개)
+│   │   │   └── SecurityConfig   # Spring Security + CORS 설정
 │   │   └── resources/
 │   │       └── application.yml  # (gitignore 제외 - 직접 생성 필요)
 │   └── test/
@@ -169,23 +226,73 @@ miniERP/
 │   └── miniERP_final_v2.sql     # DDL
 ├── build.gradle
 └── README.md
+
+miniERP_frontend/
+├── src/
+│   ├── api/
+│   │   └── axios.js             # axios 인스턴스 (JWT 자동 첨부)
+│   ├── components/
+│   │   ├── ui.jsx               # 공용 컴포넌트
+│   │   └── RegisterPopups.jsx   # 등록 팝업 (상품/브랜드/협력사/창고/지점)
+│   ├── pages/
+│   │   ├── Login.jsx            # 로그인
+│   │   ├── Dashboard.jsx        # 대시보드
+│   │   ├── Product.jsx          # 상품 관리 (상품/브랜드/협력사/창고/지점)
+│   │   ├── Inventory.jsx        # 재고 수불
+│   │   └── Settlement.jsx       # 정산
+│   ├── App.jsx
+│   └── index.css
+└── package.json
 ```
 
 ---
 
 ## 개발 현황
 
+### v0.0.1 - 기반 구축
 - [x] 프로젝트 초기 설정 (Spring Boot + PostgreSQL)
-- [x] ERD 설계 완료 (14개 테이블)
+- [x] ERD 설계 완료 (15개 테이블)
 - [x] DB DDL 작성
-- [x] Entity 클래스 작성 (13개)
-- [x] Repository 작성 (13개 - JpaRepository)
-- [x] REST API 개발 (13개 Controller - GET/POST)
-- [x] Spring Security 설정 (개발용 전체 허용)
-- [x] PUT/DELETE API 추가
+- [x] Entity / Repository / Controller 작성
+- [x] PUT / DELETE API 추가
+- [x] React 프론트엔드 기본 구조 (더미 데이터 기반)
+- [x] 대시보드 / 상품 / 재고 / 정산 UI
+
+### v0.0.2 - 인증 + 마스터 데이터 연동
+- [x] JWT 인증 구현 (JwtUtil / JwtFilter / AuthController)
+- [x] `app_user` 테이블 + BCrypt 계정 관리
+- [x] Spring Security JWT 방식 전환 + CORS 설정
+- [x] 프론트 로그인 페이지 + 토큰 저장 / 자동 로그아웃
+- [x] axios 인스턴스 (JWT 자동 첨부)
+- [x] 상품 / 브랜드 / 협력사 / 창고 마스터 실DB 연동
+- [x] 브랜드 등록 팝업 추가
+- [x] `warehouse` 테이블 컬럼 확장 (type / location / manager / phone / status)
+
+### v0.0.3 - 기초정보 고도화 1 (물류비 + 입수단위 + 지점)
+- [x] 지점(`store`) 탭 추가 및 등록 팝업
+- [x] `product` 컬럼 추가 — `qty_per_box` (박스당 EA), `box_per_pallet` (파레트당 박스), `image_url`
+- [x] `warehouse` 컬럼 추가 — `cost_per_pallet` (파레트당 물류비)
+- [x] `purchase_order` 컬럼 추가 — LOT (`lot_no`, `expire_date`), 물류비 자동계산 (`box_count`, `pallet_count`, `logistics_cost`), 실입고 (`received_qty`, `received_at`)
+- [x] 상품 등록 팝업 — 박스/파레트 입수단위 필드 추가
+- [x] 창고 등록 팝업 — 파레트 단가 필드 추가
+- [x] 상품 테이블 컬럼 개편 (용량, 매입/공급/제조원가 분리 표시)
+
+### v0.0.4 - 기초정보 고도화 2 (수정 기능)
+- [ ] 상품 / 브랜드 / 협력사 / 창고 / 지점 수정 기능
+- [ ] 상품 이미지 업로드 실연동
+
+### v0.0.5 - 발주 · 입고
+- [ ] 발주 등록 화면
+- [ ] 입고 처리 (LOT 입력 + 물류비 자동계산)
+- [ ] 입고 시 `inventory` 자동 생성 (IN 수불)
 - [ ] Service 레이어 비즈니스 로직
-- [ ] React 프론트엔드
-- [ ] 배포 (Supabase + Railway + Vercel)
+
+### v0.0.6 - 판매
+- [ ] 판매 등록 (ONLINE / OFFLINE 채널)
+- [ ] 판매 시 `inventory` 자동 차감 (OUT 수불)
+
+### v0.0.7 - 배포
+- [ ] Supabase (DB) + Railway (Backend) + Vercel (Frontend)
 
 ---
 
