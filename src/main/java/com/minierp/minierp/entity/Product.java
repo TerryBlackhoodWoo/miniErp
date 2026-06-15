@@ -65,4 +65,7 @@ public class Product {
 
     @Column(name = "box_per_pallet")
     private Integer boxPerPallet;    // 파레트당 박스 수
+
+    @Column(name = "tax_free")
+    private Boolean taxFree;
 }

@@ -39,7 +39,7 @@
 
 ## ERD
 
-> 인터랙티브 ERD: [miniERP_ERD_v2.html](./docs/miniERP_ERD_v2.html)
+> 인터랙티브 ERD: [miniERP_ERD_v3.html](./docs/miniERP_ERD_v3.html)
 
 ### 테이블 구성 (15개)
 
@@ -145,9 +145,22 @@ spring:
     url: jdbc:postgresql://localhost:5432/minierp
     username: postgres
     password: your_password
+    driver-class-name: org.postgresql.Driver
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
   jpa:
     hibernate:
       ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+server:
+  port: 8080
 
 jwt:
   secret: your-secret-key-32-chars-minimum!!
@@ -191,6 +204,13 @@ http://localhost:5173
 | 지점 | `GET /api/stores` | `POST /api/stores` | `PUT /api/stores/{id}` | `DELETE /api/stores/{id}` |
 | 창고 | `GET /api/warehouses` | `POST /api/warehouses` | `PUT /api/warehouses/{id}` | `DELETE /api/warehouses/{id}` |
 
+### 상품 이미지
+| 메서드 | 엔드포인트 | 설명 |
+|--------|-----------|------|
+| POST | `/api/products/{id}/image` | 상품 이미지 업로드 (multipart) → `image_url` 자동 갱신 |
+
+> 업로드된 이미지는 `/uploads/products/`에 저장되며 `/uploads/**` 정적 리소스로 서빙됩니다.
+
 ### 운영
 | 도메인 | GET | POST |
 |--------|-----|------|
@@ -217,12 +237,15 @@ miniERP/
 │   │   │   ├── repository/      # JpaRepository (15개)
 │   │   │   ├── service/         # 비즈니스 로직 (예정)
 │   │   │   ├── controller/      # REST API (14개)
-│   │   │   └── SecurityConfig   # Spring Security + CORS 설정
+│   │   │   ├── SecurityConfig   # Spring Security + CORS 설정
+│   │   │   └── WebConfig        # 정적 리소스 매핑 (/uploads/** → uploads/)
 │   │   └── resources/
 │   │       └── application.yml  # (gitignore 제외 - 직접 생성 필요)
 │   └── test/
+├── uploads/
+│   └── products/                # 업로드된 상품 이미지 (gitignore 제외)
 ├── docs/
-│   ├── miniERP_ERD_v2.html      # 인터랙티브 ERD
+│   ├── miniERP_ERD_v3.html       # 인터랙티브 ERD
 │   └── miniERP_final_v2.sql     # DDL
 ├── build.gradle
 └── README.md
@@ -230,16 +253,29 @@ miniERP/
 miniERP_frontend/
 ├── src/
 │   ├── api/
-│   │   └── axios.js             # axios 인스턴스 (JWT 자동 첨부)
+│   │   └── axios.js              # axios 인스턴스 (JWT 자동 첨부)
 │   ├── components/
-│   │   ├── ui.jsx               # 공용 컴포넌트
-│   │   └── RegisterPopups.jsx   # 등록 팝업 (상품/브랜드/협력사/창고/지점)
+│   │   ├── ui.jsx                # 공용 컴포넌트 (Modal, Field, Badge 등)
+│   │   ├── index.js               # 팝업 컴포넌트 re-export
+│   │   ├── shared.jsx             # genCode, PopupFooter (공용)
+│   │   └── popup/
+│   │       ├── ProductRegisterPopup.jsx
+│   │       ├── BrandRegisterPopup.jsx
+│   │       ├── VendorRegisterPopup.jsx
+│   │       ├── WarehouseRegisterPopup.jsx
+│   │       └── StoreRegisterPopup.jsx
 │   ├── pages/
-│   │   ├── Login.jsx            # 로그인
-│   │   ├── Dashboard.jsx        # 대시보드
-│   │   ├── Product.jsx          # 상품 관리 (상품/브랜드/협력사/창고/지점)
-│   │   ├── Inventory.jsx        # 재고 수불
-│   │   └── Settlement.jsx       # 정산
+│   │   ├── Login.jsx              # 로그인
+│   │   ├── Dashboard.jsx          # 대시보드
+│   │   ├── MasterData.jsx         # 기초정보 관리 (탭 전환 + 데이터 fetch)
+│   │   ├── master-tabs/
+│   │   │   ├── ProductTab.jsx     # 상품 탭 (테이블 + CRUD)
+│   │   │   ├── BrandTab.jsx       # 브랜드 탭
+│   │   │   ├── VendorTab.jsx      # 협력사 탭
+│   │   │   ├── WarehouseTab.jsx   # 창고 탭
+│   │   │   └── StoreTab.jsx       # 지점 탭
+│   │   ├── Inventory.jsx          # 재고 수불
+│   │   └── Settlement.jsx         # 정산
 │   ├── App.jsx
 │   └── index.css
 └── package.json
@@ -277,9 +313,17 @@ miniERP_frontend/
 - [x] 창고 등록 팝업 — 파레트 단가 필드 추가
 - [x] 상품 테이블 컬럼 개편 (용량, 매입/공급/제조원가 분리 표시)
 
-### v0.0.4 - 기초정보 고도화 2 (수정 기능)
-- [ ] 상품 / 브랜드 / 협력사 / 창고 / 지점 수정 기능
-- [ ] 상품 이미지 업로드 실연동
+### v0.0.4 - 기초정보 고도화 2 (수정 기능 + 이미지 업로드)
+- [x] 등록 팝업 컴포넌트 분리 (`components/popup/*`, `shared.jsx`, `index.js`)
+- [x] `MasterData` 페이지 분리 — 탭별 컴포넌트(`master-tabs/*`)로 구조 정리
+- [x] 상품 / 브랜드 / 협력사 / 창고 / 지점 수정 기능 (row 클릭 → 수정 팝업, PK 필드 비활성화)
+- [x] `product` 컬럼 추가 — `tax_free` (면세/과세 여부)
+- [x] 상품 테이블 — 면세/과세 Badge, 입수단위(박스×파레트) 컬럼 표시
+- [x] 상품 이미지 업로드 실연동 (`POST /api/products/{id}/image`, multipart)
+- [x] `ImageBox` 실연동 — 등록/수정 시 파일 업로드, 기존 이미지 미리보기 (`value`/`onFileSelect` props, `useEffect` 동기화)
+- [x] `WebConfig` 신규 추가 — 정적 리소스 매핑 (`/uploads/**` → `uploads/` 디렉토리)
+- [x] `SecurityConfig` — `/uploads/**` permitAll 추가
+- [x] multipart 업로드 용량 설정 (10MB)
 
 ### v0.0.5 - 발주 · 입고
 - [ ] 발주 등록 화면
