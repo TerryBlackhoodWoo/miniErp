@@ -39,7 +39,7 @@
 
 ## ERD
 
-> 인터랙티브 ERD: [miniERP_ERD_v3.html](https://terryblackhoodwoo.github.io/miniErpERD/)
+> 인터랙티브 ERD: [miniERP_ERD_v4.html](./docs/miniERP_ERD_v4.html)
 
 ### 테이블 구성 (15개)
 
@@ -136,7 +136,7 @@ cd miniErp
 CREATE DATABASE minierp;
 
 # DDL 실행
-psql -U postgres -d minierp -f docs/miniERP_final_v2.sql
+psql -U postgres -d minierp -f docs/miniERP_final_v3.sql
 
 # application.yml 설정 (gitignore 제외 - 직접 생성 필요)
 # src/main/resources/application.yml
@@ -212,16 +212,18 @@ http://localhost:5173
 > 업로드된 이미지는 `/uploads/products/`에 저장되며 `/uploads/**` 정적 리소스로 서빙됩니다.
 
 ### 운영
-| 도메인 | GET | POST |
-|--------|-----|------|
-| 상품서류 | `GET /api/product-documents` | `POST /api/product-documents` |
-| BOM | `GET /api/boms` | `POST /api/boms` |
-| GWP | `GET /api/gwps` | `POST /api/gwps` |
-| 프로모션 | `GET /api/promotions` | `POST /api/promotions` |
-| 발주/입고 | `GET /api/purchase-orders` | `POST /api/purchase-orders` |
-| 수불부 | `GET /api/inventories` | `POST /api/inventories` |
-| 판매 | `GET /api/sales` | `POST /api/sales` |
-| 정산 | `GET /api/settlements` | `POST /api/settlements` |
+| 도메인 | GET | POST | 기타 |
+|--------|-----|------|------|
+| 상품서류 | `GET /api/product-documents` | `POST /api/product-documents` | |
+| BOM | `GET /api/boms` | `POST /api/boms` | |
+| GWP | `GET /api/gwps` | `POST /api/gwps` | |
+| 프로모션 | `GET /api/promotions` | `POST /api/promotions` | |
+| 발주/입고 | `GET /api/purchase-orders` | `POST /api/purchase-orders` (등록, status=PENDING) | `POST /api/purchase-orders/{id}/receive` (입고 처리 — LOT/유통기한/물류메모 입력 → 박스/파레트/물류비 자동계산 → `inventory` IN 생성, `@Transactional`) |
+| 수불부 | `GET /api/inventories` | `POST /api/inventories` | |
+| 판매 | `GET /api/sales` | `POST /api/sales` | |
+| 정산 | `GET /api/settlements` | `POST /api/settlements` | |
+
+> **발주/입고 `is_direct`**: `false`(기본)이면 입고 시 `inventory`에 "협력사→창고"(`store_id=NULL`)와 "창고→지점"(`store_id`=배정지점) 2건이 생성됩니다. `true`(직배송)이면 "협력사→지점" 1건만 생성됩니다.
 
 ---
 
@@ -235,7 +237,7 @@ miniERP/
 │   │   │   ├── auth/            # JWT 인증 (JwtUtil, JwtFilter, AuthController)
 │   │   │   ├── entity/          # JPA Entity (15개)
 │   │   │   ├── repository/      # JpaRepository (15개)
-│   │   │   ├── service/         # 비즈니스 로직 (예정)
+│   │   │   ├── service/         # 비즈니스 로직 (PurchaseOrderService)
 │   │   │   ├── controller/      # REST API (14개)
 │   │   │   ├── SecurityConfig   # Spring Security + CORS 설정
 │   │   │   └── WebConfig        # 정적 리소스 매핑 (/uploads/** → uploads/)
@@ -245,8 +247,8 @@ miniERP/
 ├── uploads/
 │   └── products/                # 업로드된 상품 이미지 (gitignore 제외)
 ├── docs/
-│   ├── miniERP_ERD_v3.html       # 인터랙티브 ERD
-│   └── miniERP_final_v2.sql     # DDL
+│   ├── miniERP_ERD_v4.html       # 인터랙티브 ERD
+│   └── miniERP_final_v3.sql     # DDL
 ├── build.gradle
 └── README.md
 
@@ -263,7 +265,9 @@ miniERP_frontend/
 │   │       ├── BrandRegisterPopup.jsx
 │   │       ├── VendorRegisterPopup.jsx
 │   │       ├── WarehouseRegisterPopup.jsx
-│   │       └── StoreRegisterPopup.jsx
+│   │       ├── StoreRegisterPopup.jsx
+│   │       ├── PurchaseOrderRegisterPopup.jsx  # 발주 등록 (직배송 체크)
+│   │       └── ReceivePopup.jsx                # 입고 처리 (LOT/유통기한/물류메모)
 │   ├── pages/
 │   │   ├── Login.jsx              # 로그인
 │   │   ├── Dashboard.jsx          # 대시보드
@@ -274,10 +278,15 @@ miniERP_frontend/
 │   │   │   ├── VendorTab.jsx      # 협력사 탭
 │   │   │   ├── WarehouseTab.jsx   # 창고 탭
 │   │   │   └── StoreTab.jsx       # 지점 탭
-│   │   ├── Inventory.jsx          # 재고 수불
+│   │   ├── PurchaseOrder.jsx      # 발주·입고 페이지 (데이터 fetch + 상태 관리)
+│   │   ├── purchase-tabs/
+│   │   │   └── PurchaseOrderTab.jsx  # 발주 목록 + 등록/입고 팝업
+│   │   ├── Inventory.jsx          # 재고 수불 (더미 데이터, v0.0.6에서 current_stock 연동 예정)
 │   │   └── Settlement.jsx         # 정산
 │   ├── App.jsx
 │   └── index.css
+└── package.json
+```
 └── package.json
 ```
 
@@ -326,14 +335,21 @@ miniERP_frontend/
 - [x] multipart 업로드 용량 설정 (10MB)
 
 ### v0.0.5 - 발주 · 입고
-- [ ] 발주 등록 화면
-- [ ] 입고 처리 (LOT 입력 + 물류비 자동계산)
-- [ ] 입고 시 `inventory` 자동 생성 (IN 수불)
-- [ ] Service 레이어 비즈니스 로직
+- [x] `PurchaseOrderService` 신규 — Service 레이어 비즈니스 로직 도입
+- [x] 발주 등록 화면 (`PurchaseOrder.jsx` + `purchase-tabs/PurchaseOrderTab.jsx` + `PurchaseOrderRegisterPopup.jsx`)
+- [x] 입고 처리 (`POST /api/purchase-orders/{id}/receive`) — LOT/유통기한/물류메모 입력
+- [x] 박스/파레트/물류비 자동계산 (`qty_per_box`, `box_per_pallet`, `cost_per_pallet` 기준)
+- [x] 입고 시 `inventory` 자동 생성 (IN 수불, `@Transactional`)
+- [x] `purchase_order` 컬럼 추가 — `is_direct` (직배송 여부)
+- [x] 직배송 분기 처리 — 일반 입고는 "협력사→창고"+"창고→지점" 2건, 직배송은 "협력사→지점" 1건 생성
+- [x] ERD v4 / DDL v3 정리 (ALTER 병합, `tax_free`/`is_direct` 반영, 좌표 재배치)
 
-### v0.0.6 - 판매
+### v0.0.6 - 재고 조회 + 판매
+- [ ] `current_stock` View 조회 API (`GET /api/current-stock`) — 창고/지점별 실시간 재고
+- [ ] `Inventory.jsx` 더미 데이터 → 실DB 연동 (입출고 로그 + 현재고)
 - [ ] 판매 등록 (ONLINE / OFFLINE 채널)
-- [ ] 판매 시 `inventory` 자동 차감 (OUT 수불)
+- [ ] 판매 시 `inventory` 자동 차감 (OUT 수불) + 재고 부족 검증
+- [ ] (검토) 창고 대기재고(`store_id IS NULL`) → 지점 배분 이동 화면
 
 ### v0.0.7 - 배포
 - [ ] Supabase (DB) + Railway (Backend) + Vercel (Frontend)
