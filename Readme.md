@@ -39,7 +39,7 @@
 
 ## ERD
 
-> 인터랙티브 ERD: [miniERP_ERD_v3.html](./docs/miniERP_ERD_v3.html)
+> 인터랙티브 ERD: [miniERP_ERD_v3.html](https://terryblackhoodwoo.github.io/miniErpERD/)
 
 ### 테이블 구성 (15개)
 
