@@ -43,4 +43,9 @@ public class PurchaseOrderController {
                                  @RequestBody PurchaseOrderService.ReceiveRequest req) {
         return purchaseOrderService.receive(id, req);
     }
+
+    @PostMapping("/{id}/allocate")
+    public PurchaseOrder allocate(@PathVariable Integer id) {
+        return purchaseOrderService.allocate(id);
+    }
 }

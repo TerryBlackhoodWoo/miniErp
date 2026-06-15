@@ -1,5 +1,6 @@
 package com.minierp.minierp.controller;
 
+import com.minierp.minierp.dto.InventoryLedgerDto;
 import com.minierp.minierp.entity.Inventory;
 import com.minierp.minierp.repository.InventoryRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,9 +28,13 @@ public class InventoryController {
         inventory.setInvId(id);
         return inventoryRepository.save(inventory);
     }
-
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Integer id) {
         inventoryRepository.deleteById(id);
+    }
+
+    @GetMapping("/ledger")
+    public List<InventoryLedgerDto> getLedger() {
+        return inventoryRepository.findAllLedger();
     }
 }

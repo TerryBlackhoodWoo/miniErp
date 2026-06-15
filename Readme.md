@@ -344,14 +344,31 @@ miniERP_frontend/
 - [x] 직배송 분기 처리 — 일반 입고는 "협력사→창고"+"창고→지점" 2건, 직배송은 "협력사→지점" 1건 생성
 - [x] ERD v4 / DDL v3 정리 (ALTER 병합, `tax_free`/`is_direct` 반영, 좌표 재배치)
 
-### v0.0.6 - 재고 조회 + 판매
-- [ ] `current_stock` View 조회 API (`GET /api/current-stock`) — 창고/지점별 실시간 재고
-- [ ] `Inventory.jsx` 더미 데이터 → 실DB 연동 (입출고 로그 + 현재고)
-- [ ] 판매 등록 (ONLINE / OFFLINE 채널)
-- [ ] 판매 시 `inventory` 자동 차감 (OUT 수불) + 재고 부족 검증
-- [ ] (검토) 창고 대기재고(`store_id IS NULL`) → 지점 배분 이동 화면
+### v0.0.6 - 재고 조회 + 발주/입고 구조 재설계
+- [x] `current_stock` View용 읽기 전용 Entity/Repository/Controller (`GET /api/current-stock`)
+- [x] `Inventory.jsx` 더미 → 실DB 연동 (`GET /api/inventories/ledger` — Inventory+Product+Warehouse+Store join DTO)
+- [x] **발주/입고/배분 구조 재설계 (v0.0.5 버그 수정 포함)**
+  - 기존 v0.0.5 `/receive`가 "협력사→창고"+"창고→지점" 2건을 동시 생성하면서 OUT 누락 → 재고 중복 집계 버그 발견
+  - `is_direct`(직배송) 분기 완전 제거, 모든 발주를 **2단계 흐름**으로 통일
+  - 1단계: 발주 등록 (`PENDING`) — 지점 요청, 경유 창고 지정
+  - 2단계: 입고 처리 (`POST /api/purchase-orders/{id}/receive`) — 협력사→창고 IN 1건, `status=RECEIVED`
+  - 3단계: 배분 승인 (`POST /api/purchase-orders/{id}/allocate`, 신규) — 창고 OUT + 지점 IN 2건, `status=COMPLETED`
+- [x] 프론트 — 발주·입고 화면 3단 구조로 분리
+  - 입고 대기 (`ReceiveTab.jsx`, `PENDING` 목록 + `ReceivePopup`)
+  - 배분 대기 (`AllocateTab.jsx` 신규, `RECEIVED` 목록 + 배분 승인)
+  - 발주 목록 (`PurchaseOrderTab.jsx`, 전체 + 상태별 Badge: 입고대기/배분대기/완료)
+  - `PurchaseOrderRegisterPopup.jsx` — 직배송 체크박스 제거, "입고 창고" → "경유 창고"로 라벨 변경
+  - `App.jsx` — `po` 페이지 중복 렌더링(`ComingSoon` + `PurchaseOrder`) 버그 수정
+- [x] `purchase_order.is_direct` 컬럼 완전 제거 (Entity / DDL / DB)
+- [x] `inventory` 테스트 데이터 정리 (v0.0.5 시점 잘못 생성된 row 제거, 새 흐름으로 재시작)
 
-### v0.0.7 - 배포
+### v0.0.7 - 판매 (다음 작업)
+- [ ] 재고 조회 화면 (`Inventory.jsx` 하단 — 수불 이력과 별도로 "현재고" 요약 뷰, `current_stock` 기반, 지점/창고/상품별)
+- [ ] 판매 등록 (`sales` 테이블, ONLINE/OFFLINE 채널)
+- [ ] 판매 시 `current_stock` 조회 → 재고 부족 검증 → `inventory` OUT 생성 (`@Transactional`)
+- [ ] FIFO LOT 선택 (`CurrentStockRepository.findAvailableLotsForSale`)
+
+### v1.0.0 - 배포
 - [ ] Supabase (DB) + Railway (Backend) + Vercel (Frontend)
 
 ---

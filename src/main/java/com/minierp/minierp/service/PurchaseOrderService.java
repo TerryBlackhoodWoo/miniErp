@@ -1,7 +1,13 @@
 package com.minierp.minierp.service;
 
-import com.minierp.minierp.entity.*;
-import com.minierp.minierp.repository.*;
+import com.minierp.minierp.entity.Inventory;
+import com.minierp.minierp.entity.Product;
+import com.minierp.minierp.entity.PurchaseOrder;
+import com.minierp.minierp.entity.Warehouse;
+import com.minierp.minierp.repository.InventoryRepository;
+import com.minierp.minierp.repository.ProductRepository;
+import com.minierp.minierp.repository.PurchaseOrderRepository;
+import com.minierp.minierp.repository.WarehouseRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,28 +63,10 @@ public class PurchaseOrderService {
         po.setStatus("RECEIVED");
         purchaseOrderRepository.save(po);
 
-        boolean isDirect = Boolean.TRUE.equals(po.getIsDirect());
-
-        if (!isDirect) {
-            // 1) 협력사 → 창고 입고 (경유 기록, store=NULL)
-            inventoryRepository.save(Inventory.builder()
-                    .warehouseId(po.getWarehouseId())
-                    .storeId(null)
-                    .productNo(po.getProductNo())
-                    .brandCd(po.getBrandCd())
-                    .vendorCd(po.getVendorCd())
-                    .lotNo(req.lotNo())
-                    .expireDate(req.expireDate())
-                    .moveType("IN")
-                    .qty(receivedQty)
-                    .refId(BigDecimal.valueOf(po.getOrderId()))
-                    .build());
-        }
-
-        // 2) 창고 → 지점 배정 (직배송이면 협력사 → 지점 직행)
+        // 협력사 → 창고 (IN)
         inventoryRepository.save(Inventory.builder()
                 .warehouseId(po.getWarehouseId())
-                .storeId(po.getStoreId())
+                .storeId(null)
                 .productNo(po.getProductNo())
                 .brandCd(po.getBrandCd())
                 .vendorCd(po.getVendorCd())
@@ -92,12 +80,52 @@ public class PurchaseOrderService {
         return po;
     }
 
+    @Transactional
+    public PurchaseOrder allocate(Integer orderId) {
+        PurchaseOrder po = purchaseOrderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("발주를 찾을 수 없습니다: " + orderId));
+
+        if (!"RECEIVED".equals(po.getStatus())) {
+            throw new IllegalStateException("입고 완료 상태의 발주만 배분할 수 있습니다: " + orderId);
+        }
+
+        BigDecimal qty = po.getReceivedQty();
+
+        // 창고 → 배분 차감 (OUT)
+        inventoryRepository.save(Inventory.builder()
+                .warehouseId(po.getWarehouseId())
+                .storeId(null)
+                .productNo(po.getProductNo())
+                .brandCd(po.getBrandCd())
+                .vendorCd(po.getVendorCd())
+                .lotNo(po.getLotNo())
+                .expireDate(po.getExpireDate())
+                .moveType("OUT")
+                .qty(qty)
+                .refId(BigDecimal.valueOf(po.getOrderId()))
+                .build());
+
+        // 창고 → 지점 (IN)
+        inventoryRepository.save(Inventory.builder()
+                .warehouseId(null)
+                .storeId(po.getStoreId())
+                .productNo(po.getProductNo())
+                .brandCd(po.getBrandCd())
+                .vendorCd(po.getVendorCd())
+                .lotNo(po.getLotNo())
+                .expireDate(po.getExpireDate())
+                .moveType("IN")
+                .qty(qty)
+                .refId(BigDecimal.valueOf(po.getOrderId()))
+                .build());
+
+        po.setStatus("COMPLETED");
+        purchaseOrderRepository.save(po);
+
+        return po;
+    }
+
     // 입고 요청 DTO
-    public record ReceiveRequest(
-            BigDecimal receivedQty,
-            String lotNo,
-            LocalDate expireDate,
-            String logisticsMemo
-    ) {
+    public record ReceiveRequest(BigDecimal receivedQty, String lotNo, LocalDate expireDate, String logisticsMemo) {
     }
 }

@@ -71,9 +71,6 @@ public class PurchaseOrder {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
-    @Column(name = "is_direct")
-    private Boolean isDirect;           // 직택배 여부
-
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
