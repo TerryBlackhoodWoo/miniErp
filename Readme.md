@@ -402,6 +402,15 @@ miniERP_frontend/
 
 > BOM / GWP / 프로모션 연동은 v1.0.0 배포 이후 별도 마이너 버전(v1.x.0)으로 진행 예정.
 
+### v1.0.1 - 핫픽스
+- [x] **`Login.jsx` 로그인 실패 버그 수정** — 다른 모든 페이지는 환경변수 기반 `api`(axios 인스턴스, `src/api/axios.js`)를 사용했지만, `Login.jsx`만 `axios`를 직접 import하여 `http://localhost:8080`을 하드코딩 — production 배포 환경(Vercel)에서 로그인 자체가 항상 localhost로 요청되어 실패하던 문제
+  - `Login.jsx`를 공용 `api` 인스턴스로 통일
+  - `input`에 `autoComplete` 속성 추가 (브라우저 자격증명 관리자 권한 팝업 관련 개선)
+- [x] **CORS 허용 방식을 와일드카드 패턴으로 변경** — Vercel은 Redeploy/Preview마다 서로 다른 임시 URL(`mini-erp-frontend-{랜덤}-leftdeadman-6379s-projects.vercel.app`)을 생성하는데, 고정 도메인 하나만 허용 목록에 등록해두면 그 외 URL에서는 매번 CORS preflight가 403으로 막히는 문제 발견
+  - `setAllowedOrigins` → `setAllowedOriginPatterns`로 전환, `https://mini-erp-frontend-*.vercel.app` / `https://*-leftdeadman-6379s-projects.vercel.app` 패턴 허용
+  - 이후 어떤 Vercel deployment URL로 접속해도 CORS 통과
+- [ ] `ImageBox` 등 이미지 URL 생성 로직에 남아있는 `http://localhost:8080` 하드코딩 — 다음 정리 과제
+
 ---
 
 ## 관련 프로젝트
