@@ -30,13 +30,13 @@ public class Sales {
     private String vendorCd;
 
     @Column(name = "channel", length = 10)
-    private String channel;
+    private String channel;       // ONLINE / OFFLINE
 
     @Column(name = "order_no", length = 50)
-    private String orderNo;
+    private String orderNo;       // 온라인 주문번호 (OFFLINE 시 NULL)
 
     @Column(name = "lot_no", length = 50)
-    private String lotNo;
+    private String lotNo;         // FIFO로 자동 결정됨
 
     @Column(name = "sale_qty")
     private BigDecimal saleQty;
@@ -45,13 +45,13 @@ public class Sales {
     private BigDecimal salePrice;
 
     @Column(name = "promo_id")
-    private Integer promoId;
+    private Integer promoId;      // 프로모션 미구현, 항상 NULL
 
     @Column(name = "sale_at")
     private LocalDateTime saleAt;
 
     @PrePersist
     protected void onCreate() {
-        this.saleAt = LocalDateTime.now();
+        if (this.saleAt == null) this.saleAt = LocalDateTime.now();
     }
 }

@@ -39,7 +39,7 @@
 
 ## ERD
 
-> 인터랙티브 ERD: [miniERP_ERD_v4.html](./docs/miniERP_ERD_v4.html)
+> 인터랙티브 ERD: [miniERP_ERD_v5.html](https://terryblackhoodwoo.github.io/miniErpERD/)
 
 ### 테이블 구성 (15개)
 
@@ -218,12 +218,13 @@ http://localhost:5173
 | BOM | `GET /api/boms` | `POST /api/boms` | |
 | GWP | `GET /api/gwps` | `POST /api/gwps` | |
 | 프로모션 | `GET /api/promotions` | `POST /api/promotions` | |
-| 발주/입고 | `GET /api/purchase-orders` | `POST /api/purchase-orders` (등록, status=PENDING) | `POST /api/purchase-orders/{id}/receive` (입고 처리 — LOT/유통기한/물류메모 입력 → 박스/파레트/물류비 자동계산 → `inventory` IN 생성, `@Transactional`) |
-| 수불부 | `GET /api/inventories` | `POST /api/inventories` | |
-| 판매 | `GET /api/sales` | `POST /api/sales` | |
+| 발주/입고 | `GET /api/purchase-orders` | `POST /api/purchase-orders` (등록, status=PENDING) | `POST /api/purchase-orders/{id}/receive` (입고 처리 — LOT/유통기한/물류메모 입력 → 박스/파레트/물류비 자동계산 → `inventory` IN 1건 생성, status=RECEIVED) / `POST /api/purchase-orders/{id}/allocate` (배분 승인 — 창고 OUT + 지점 IN 2건 생성, status=COMPLETED, `@Transactional`) |
+| 수불부 | `GET /api/inventories` | `POST /api/inventories` | `GET /api/inventories/ledger` (Product/Warehouse/Store join DTO) |
+| 현재고 | `GET /api/current-stock` | - | 네이티브 쿼리 기반 DTO 응답 (`CurrentStockDto`) |
+| 판매 | `GET /api/sales` | `POST /api/sales` (FIFO LOT 자동 차감, 재고부족 시 409 응답) | |
 | 정산 | `GET /api/settlements` | `POST /api/settlements` | |
 
-> **발주/입고 `is_direct`**: `false`(기본)이면 입고 시 `inventory`에 "협력사→창고"(`store_id=NULL`)와 "창고→지점"(`store_id`=배정지점) 2건이 생성됩니다. `true`(직배송)이면 "협력사→지점" 1건만 생성됩니다.
+> **발주 흐름 (v0.6.0 기준)**: 발주(PENDING) → 입고 처리(`/receive`, 협력사→창고 IN 1건, RECEIVED) → 배분 승인(`/allocate`, 창고 OUT + 지점 IN 2건, COMPLETED) 3단계로 통일되었습니다. 기존 `is_direct`(직배송) 분기는 제거되었습니다.
 
 ---
 
@@ -246,11 +247,13 @@ miniERP/
 │   └── test/
 ├── uploads/
 │   └── products/                # 업로드된 상품 이미지 (gitignore 제외)
-├── docs/
-│   ├── miniERP_ERD_v4.html       # 인터랙티브 ERD
-│   └── miniERP_final_v3.sql     # DDL
 ├── build.gradle
 └── README.md
+
+miniERP_ERD/(https://terryblackhoodwoo.github.io/miniErpERD/ 배포 中)
+├── index.html                  # 인터랙티브 ERD
+├── miniERP_DB_script.sql       # DDL
+└── miniERP.png                 # html 로고
 
 miniERP_frontend/
 ├── src/
@@ -266,8 +269,9 @@ miniERP_frontend/
 │   │       ├── VendorRegisterPopup.jsx
 │   │       ├── WarehouseRegisterPopup.jsx
 │   │       ├── StoreRegisterPopup.jsx
-│   │       ├── PurchaseOrderRegisterPopup.jsx  # 발주 등록 (직배송 체크)
-│   │       └── ReceivePopup.jsx                # 입고 처리 (LOT/유통기한/물류메모)
+│   │       ├── PurchaseOrderRegisterPopup.jsx  # 발주 등록 (지점/경유창고/상품/수량)
+│   │       ├── ReceivePopup.jsx                # 입고 처리 (LOT/유통기한/물류메모)
+│   │       └── SalesRegisterPopup.jsx          # 판매 등록 (채널/지점/상품/수량/판매가)
 │   ├── pages/
 │   │   ├── Login.jsx              # 로그인
 │   │   ├── Dashboard.jsx          # 대시보드
@@ -278,15 +282,16 @@ miniERP_frontend/
 │   │   │   ├── VendorTab.jsx      # 협력사 탭
 │   │   │   ├── WarehouseTab.jsx   # 창고 탭
 │   │   │   └── StoreTab.jsx       # 지점 탭
-│   │   ├── PurchaseOrder.jsx      # 발주·입고 페이지 (데이터 fetch + 상태 관리)
+│   │   ├── PurchaseOrder.jsx      # 발주·입고 페이지 (입고대기/배분대기/발주목록 3단 구성)
 │   │   ├── purchase-tabs/
-│   │   │   └── PurchaseOrderTab.jsx  # 발주 목록 + 등록/입고 팝업
-│   │   ├── Inventory.jsx          # 재고 수불 (더미 데이터, v0.0.6에서 current_stock 연동 예정)
+│   │   │   ├── ReceiveTab.jsx        # 입고 대기 목록 (PENDING) + 입고 처리
+│   │   │   ├── AllocateTab.jsx       # 배분 대기 목록 (RECEIVED) + 배분 승인
+│   │   │   └── PurchaseOrderTab.jsx  # 전체 발주 목록 + 등록 팝업
+│   │   ├── Inventory.jsx          # 재고 수불 (현재고 요약 + 입출고 이력, current_stock/inventory 실DB 연동)
+│   │   ├── Sales.jsx              # 판매 등록 및 이력
 │   │   └── Settlement.jsx         # 정산
 │   ├── App.jsx
 │   └── index.css
-└── package.json
-```
 └── package.json
 ```
 
@@ -294,7 +299,7 @@ miniERP_frontend/
 
 ## 개발 현황
 
-### v0.0.1 - 기반 구축
+### v0.1.0 - 기반 구축
 - [x] 프로젝트 초기 설정 (Spring Boot + PostgreSQL)
 - [x] ERD 설계 완료 (15개 테이블)
 - [x] DB DDL 작성
@@ -303,7 +308,7 @@ miniERP_frontend/
 - [x] React 프론트엔드 기본 구조 (더미 데이터 기반)
 - [x] 대시보드 / 상품 / 재고 / 정산 UI
 
-### v0.0.2 - 인증 + 마스터 데이터 연동
+### v0.2.0 - 인증 + 마스터 데이터 연동
 - [x] JWT 인증 구현 (JwtUtil / JwtFilter / AuthController)
 - [x] `app_user` 테이블 + BCrypt 계정 관리
 - [x] Spring Security JWT 방식 전환 + CORS 설정
@@ -313,7 +318,7 @@ miniERP_frontend/
 - [x] 브랜드 등록 팝업 추가
 - [x] `warehouse` 테이블 컬럼 확장 (type / location / manager / phone / status)
 
-### v0.0.3 - 기초정보 고도화 1 (물류비 + 입수단위 + 지점)
+### v0.3.0 - 기초정보 고도화 1 (물류비 + 입수단위 + 지점)
 - [x] 지점(`store`) 탭 추가 및 등록 팝업
 - [x] `product` 컬럼 추가 — `qty_per_box` (박스당 EA), `box_per_pallet` (파레트당 박스), `image_url`
 - [x] `warehouse` 컬럼 추가 — `cost_per_pallet` (파레트당 물류비)
@@ -322,7 +327,7 @@ miniERP_frontend/
 - [x] 창고 등록 팝업 — 파레트 단가 필드 추가
 - [x] 상품 테이블 컬럼 개편 (용량, 매입/공급/제조원가 분리 표시)
 
-### v0.0.4 - 기초정보 고도화 2 (수정 기능 + 이미지 업로드)
+### v0.4.0 - 기초정보 고도화 2 (수정 기능 + 이미지 업로드)
 - [x] 등록 팝업 컴포넌트 분리 (`components/popup/*`, `shared.jsx`, `index.js`)
 - [x] `MasterData` 페이지 분리 — 탭별 컴포넌트(`master-tabs/*`)로 구조 정리
 - [x] 상품 / 브랜드 / 협력사 / 창고 / 지점 수정 기능 (row 클릭 → 수정 팝업, PK 필드 비활성화)
@@ -334,7 +339,7 @@ miniERP_frontend/
 - [x] `SecurityConfig` — `/uploads/**` permitAll 추가
 - [x] multipart 업로드 용량 설정 (10MB)
 
-### v0.0.5 - 발주 · 입고
+### v0.5.0 - 발주 · 입고
 - [x] `PurchaseOrderService` 신규 — Service 레이어 비즈니스 로직 도입
 - [x] 발주 등록 화면 (`PurchaseOrder.jsx` + `purchase-tabs/PurchaseOrderTab.jsx` + `PurchaseOrderRegisterPopup.jsx`)
 - [x] 입고 처리 (`POST /api/purchase-orders/{id}/receive`) — LOT/유통기한/물류메모 입력
@@ -344,32 +349,45 @@ miniERP_frontend/
 - [x] 직배송 분기 처리 — 일반 입고는 "협력사→창고"+"창고→지점" 2건, 직배송은 "협력사→지점" 1건 생성
 - [x] ERD v4 / DDL v3 정리 (ALTER 병합, `tax_free`/`is_direct` 반영, 좌표 재배치)
 
-### v0.0.6 - 재고 조회 + 발주/입고 구조 재설계
+### v0.6.0 - 재고 조회 + 발주/입고 구조 재설계
 - [x] `current_stock` View용 읽기 전용 Entity/Repository/Controller (`GET /api/current-stock`)
 - [x] `Inventory.jsx` 더미 → 실DB 연동 (`GET /api/inventories/ledger` — Inventory+Product+Warehouse+Store join DTO)
 - [x] **발주/입고/배분 구조 재설계 (v0.0.5 버그 수정 포함)**
-  - 기존 v0.0.5 `/receive`가 "협력사→창고"+"창고→지점" 2건을 동시 생성하면서 OUT 누락 → 재고 중복 집계 버그 발견
-  - `is_direct`(직배송) 분기 완전 제거, 모든 발주를 **2단계 흐름**으로 통일
-  - 1단계: 발주 등록 (`PENDING`) — 지점 요청, 경유 창고 지정
-  - 2단계: 입고 처리 (`POST /api/purchase-orders/{id}/receive`) — 협력사→창고 IN 1건, `status=RECEIVED`
-  - 3단계: 배분 승인 (`POST /api/purchase-orders/{id}/allocate`, 신규) — 창고 OUT + 지점 IN 2건, `status=COMPLETED`
+    - 기존 v0.0.5 `/receive`가 "협력사→창고"+"창고→지점" 2건을 동시 생성하면서 OUT 누락 → 재고 중복 집계 버그 발견
+    - `is_direct`(직배송) 분기 완전 제거, 모든 발주를 **2단계 흐름**으로 통일
+    - 1단계: 발주 등록 (`PENDING`) — 지점 요청, 경유 창고 지정
+    - 2단계: 입고 처리 (`POST /api/purchase-orders/{id}/receive`) — 협력사→창고 IN 1건, `status=RECEIVED`
+    - 3단계: 배분 승인 (`POST /api/purchase-orders/{id}/allocate`, 신규) — 창고 OUT + 지점 IN 2건, `status=COMPLETED`
 - [x] 프론트 — 발주·입고 화면 3단 구조로 분리
-  - 입고 대기 (`ReceiveTab.jsx`, `PENDING` 목록 + `ReceivePopup`)
-  - 배분 대기 (`AllocateTab.jsx` 신규, `RECEIVED` 목록 + 배분 승인)
-  - 발주 목록 (`PurchaseOrderTab.jsx`, 전체 + 상태별 Badge: 입고대기/배분대기/완료)
-  - `PurchaseOrderRegisterPopup.jsx` — 직배송 체크박스 제거, "입고 창고" → "경유 창고"로 라벨 변경
-  - `App.jsx` — `po` 페이지 중복 렌더링(`ComingSoon` + `PurchaseOrder`) 버그 수정
+    - 입고 대기 (`ReceiveTab.jsx`, `PENDING` 목록 + `ReceivePopup`)
+    - 배분 대기 (`AllocateTab.jsx` 신규, `RECEIVED` 목록 + 배분 승인)
+    - 발주 목록 (`PurchaseOrderTab.jsx`, 전체 + 상태별 Badge: 입고대기/배분대기/완료)
+    - `PurchaseOrderRegisterPopup.jsx` — 직배송 체크박스 제거, "입고 창고" → "경유 창고"로 라벨 변경
+    - `App.jsx` — `po` 페이지 중복 렌더링(`ComingSoon` + `PurchaseOrder`) 버그 수정
 - [x] `purchase_order.is_direct` 컬럼 완전 제거 (Entity / DDL / DB)
 - [x] `inventory` 테스트 데이터 정리 (v0.0.5 시점 잘못 생성된 row 제거, 새 흐름으로 재시작)
 
-### v0.0.7 - 판매 (다음 작업)
-- [ ] 재고 조회 화면 (`Inventory.jsx` 하단 — 수불 이력과 별도로 "현재고" 요약 뷰, `current_stock` 기반, 지점/창고/상품별)
-- [ ] 판매 등록 (`sales` 테이블, ONLINE/OFFLINE 채널)
-- [ ] 판매 시 `current_stock` 조회 → 재고 부족 검증 → `inventory` OUT 생성 (`@Transactional`)
-- [ ] FIFO LOT 선택 (`CurrentStockRepository.findAvailableLotsForSale`)
+### v0.7.0 - 판매
+- [x] 재고 조회 화면 (`Inventory.jsx` 상단 — "현재고" 요약 섹션, `current_stock` 기반, LOT/유통기한/창고·지점 위치 표시, 0 이하 재고 숨김)
+- [x] **`current_stock` API 버그 수정** — `@Entity` + `@Immutable` + `@EmbeddedId` 조합에서 PK 컬럼 중 일부가 NULL인 row(창고 또는 지점 단독 보유 시 항상 발생)가 Hibernate에 의해 전체 null로 매핑되는 문제 발견
+    - `CurrentStock`/`CurrentStockId` Entity 매핑 방식 폐기, `EntityManager` 기반 네이티브 쿼리 + `Tuple` 매핑으로 전환
+    - `CurrentStockRepository`를 `JpaRepository` 대신 `@Repository` 일반 클래스로 변경, `CurrentStockDto` 직접 생성
+- [x] 판매 등록 (`sales` 테이블, ONLINE/OFFLINE 채널, `Sales`/`SalesRepository`/`SalesController`)
+- [x] `SalesService.createSale()` — 지점 재고 합계 검증 → 부족 시 409 응답 → FIFO(유통기한 빠른 순) LOT 순회하며 `inventory` OUT 생성 (LOT 분할 차감 지원, `@Transactional`)
+- [x] `CurrentStockRepository.findAvailableForSale()` — 지점/상품 기준 FIFO 정렬 가용 LOT 조회
+- [x] 프론트 — 판매 등록 화면 (`Sales.jsx`, `SalesRegisterPopup.jsx`), 채널별 주문번호 입력 분기, 재고부족 에러 메시지 표시
+- [x] 풀 사이클 검증 완료: 발주 → 입고 → 배분 → 판매 → 현재고 반영까지 정상 동작 확인
 
-### v1.0.0 - 배포
-- [ ] Supabase (DB) + Railway (Backend) + Vercel (Frontend)
+### v0.8.0 - 배포 준비 (다음 작업)
+- [ ] Supabase (DB) 마이그레이션
+- [ ] Railway (Backend) 배포
+- [ ] Vercel (Frontend) 배포
+- [ ] 환경별 설정 분리 (application.yml, axios baseURL)
+
+### v1.0.0 - 정식 배포
+- [ ] 배포 완료, 핵심 흐름(발주→입고→배분→판매→재고→정산) 전체 동작 확인
+
+> BOM / GWP / 프로모션 연동은 v1.0.0 배포 이후 별도 마이너 버전(v1.x.0)으로 진행 예정.
 
 ---
 

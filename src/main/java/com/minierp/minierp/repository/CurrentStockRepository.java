@@ -1,37 +1,57 @@
 package com.minierp.minierp.repository;
 
-import com.minierp.minierp.entity.CurrentStock;
-import com.minierp.minierp.entity.CurrentStockId;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
+import com.minierp.minierp.dto.CurrentStockDto;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.Tuple;
+import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
-public interface CurrentStockRepository extends JpaRepository<CurrentStock, CurrentStockId> {
+@Repository
+public class CurrentStockRepository {
 
-    List<CurrentStock> findByIdProductNo(String productNo);
+    @PersistenceContext
+    private EntityManager em;
 
-    List<CurrentStock> findByIdWarehouseId(Integer warehouseId);
+    public List<CurrentStockDto> findAll() {
+        List<Tuple> rows = em.createNativeQuery("""
+                SELECT product_no, lot_no, expire_date, warehouse_id, store_id, current_qty
+                FROM current_stock
+                """, Tuple.class).getResultList();
 
-    List<CurrentStock> findByIdStoreId(Integer storeId);
+        return rows.stream().map(t -> new CurrentStockDto(
+                (String) t.get("product_no"),
+                (String) t.get("lot_no"),
+                (LocalDate) t.get("expire_date"),
+                t.get("warehouse_id") != null ? ((Number) t.get("warehouse_id")).intValue() : null,
+                t.get("store_id") != null ? ((Number) t.get("store_id")).intValue() : null,
+                (BigDecimal) t.get("current_qty")
+        )).toList();
+    }
 
-    // 판매 시 재고 검증용 - 특정 지점/상품의 가용 재고 합계
-    @Query("""
-        SELECT COALESCE(SUM(cs.currentQty), 0)
-        FROM CurrentStock cs
-        WHERE cs.id.productNo = :productNo
-          AND cs.id.storeId = :storeId
-    """)
-    BigDecimal getAvailableQty(String productNo, Integer storeId);
+    public List<CurrentStockDto> findAvailableForSale(String productNo, Integer storeId) {
+        List<Tuple> rows = em.createNativeQuery("""
+                SELECT product_no, lot_no, expire_date, warehouse_id, store_id, current_qty
+                FROM current_stock
+                WHERE product_no = :productNo
+                  AND store_id = :storeId
+                  AND current_qty > 0
+                ORDER BY expire_date ASC NULLS LAST
+                """, Tuple.class)
+                .setParameter("productNo", productNo)
+                .setParameter("storeId", storeId)
+                .getResultList();
 
-    // FIFO 차감용 - 유통기한 빠른 순으로 재고 있는 LOT 조회
-    @Query("""
-        SELECT cs FROM CurrentStock cs
-        WHERE cs.id.productNo = :productNo
-          AND cs.id.storeId = :storeId
-          AND cs.currentQty > 0
-        ORDER BY cs.id.expireDate ASC NULLS LAST
-    """)
-    List<CurrentStock> findAvailableLotsForSale(String productNo, Integer storeId);
+        return rows.stream().map(t -> new CurrentStockDto(
+                (String) t.get("product_no"),
+                (String) t.get("lot_no"),
+                (LocalDate) t.get("expire_date"),
+                t.get("warehouse_id") != null ? ((Number) t.get("warehouse_id")).intValue() : null,
+                t.get("store_id") != null ? ((Number) t.get("store_id")).intValue() : null,
+                (BigDecimal) t.get("current_qty")
+        )).toList();
+    }
 }
