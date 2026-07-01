@@ -203,7 +203,7 @@ yarn dev --host
 http://localhost:5173
 ```
 
-> 기본 계정: 별도 app_user INSERT 필요 (BCrypt 해시 사용)
+> 기본 계정: 회원가입 후 이용 (`POST /api/auth/register`)
 
 ---
 
@@ -213,6 +213,7 @@ http://localhost:5173
 | 메서드 | 엔드포인트 | 설명 |
 |--------|-----------|------|
 | POST | `/api/auth/login` | 로그인 → JWT 토큰 발급 |
+| POST | `/api/auth/register` | 회원가입 → 아이디 중복 시 409 |
 
 > 인증 이후 모든 요청에 `Authorization: Bearer {token}` 헤더 필요
 
@@ -241,7 +242,7 @@ http://localhost:5173
 | 프로모션 | `GET /api/promotions` | `POST /api/promotions` | |
 | 발주/입고 | `GET /api/purchase-orders` | `POST /api/purchase-orders` (등록, status=PENDING) | `POST /api/purchase-orders/{id}/receive` (입고 처리 — LOT/유통기한/물류메모 입력 → 박스/파레트/물류비 자동계산 → `inventory` IN 1건 생성, status=RECEIVED) / `POST /api/purchase-orders/{id}/allocate` (배분 승인 — 창고 OUT + 지점 IN 2건 생성, status=COMPLETED, `@Transactional`) |
 | 수불부 | `GET /api/inventories` | `POST /api/inventories` | `GET /api/inventories/ledger` (Product/Warehouse/Store join DTO) |
-| 현재고 | `GET /api/current-stock` | - | 네이티브 쿼리 기반 DTO 응답 (`CurrentStockDto`) |
+| 현재고 | `GET /api/current-stock` | - | 네이티브 쿼리 + JOIN DTO 응답 (`CurrentStockDto` — 브랜드명·상품명·창고명·지점명·원가 포함) |
 | 판매 | `GET /api/sales` | `POST /api/sales` (FIFO LOT 자동 차감, 재고부족 시 409 응답) | |
 | 정산 | `GET /api/settlements` | `POST /api/settlements` | |
 
@@ -259,7 +260,7 @@ miniERP/
 │   │   │   ├── auth/            # JWT 인증 (JwtUtil, JwtFilter, AuthController)
 │   │   │   ├── entity/          # JPA Entity (15개)
 │   │   │   ├── repository/      # JpaRepository (15개)
-│   │   │   ├── service/         # 비즈니스 로직 (PurchaseOrderService)
+│   │   │   ├── service/         # 비즈니스 로직 (PurchaseOrderService, SalesService)
 │   │   │   ├── controller/      # REST API (14개)
 │   │   │   ├── SecurityConfig   # Spring Security + CORS 설정
 │   │   │   └── WebConfig        # 정적 리소스 매핑 (/uploads/** → uploads/)
@@ -279,9 +280,9 @@ miniERP_ERD/(https://terryblackhoodwoo.github.io/miniErpERD/ 배포 中)
 miniERP_frontend/
 ├── src/
 │   ├── api/
-│   │   └── axios.js              # axios 인스턴스 (JWT 자동 첨부)
+│   │   └── axios.js              # axios 인스턴스 (JWT 자동 첨부, VITE_API_BASE_URL 환경변수)
 │   ├── components/
-│   │   ├── ui.jsx                # 공용 컴포넌트 (Modal, Field, Badge 등)
+│   │   ├── ui.jsx                # 공용 컴포넌트 (Modal, Field, Badge, ImageBox 등)
 │   │   ├── index.js               # 팝업 컴포넌트 re-export
 │   │   ├── shared.jsx             # genCode, PopupFooter (공용)
 │   │   └── popup/
@@ -294,8 +295,8 @@ miniERP_frontend/
 │   │       ├── ReceivePopup.jsx                # 입고 처리 (LOT/유통기한/물류메모)
 │   │       └── SalesRegisterPopup.jsx          # 판매 등록 (채널/지점/상품/수량/판매가)
 │   ├── pages/
-│   │   ├── Login.jsx              # 로그인
-│   │   ├── Dashboard.jsx          # 대시보드
+│   │   ├── Login.jsx              # 로그인 / 회원가입 (탭 전환)
+│   │   ├── Dashboard.jsx          # 대시보드 (현재고·매출·발주 실DB 연동)
 │   │   ├── MasterData.jsx         # 기초정보 관리 (탭 전환 + 데이터 fetch)
 │   │   ├── master-tabs/
 │   │   │   ├── ProductTab.jsx     # 상품 탭 (테이블 + CRUD)
@@ -425,18 +426,31 @@ miniERP_frontend/
 - [x] **`Login.jsx` 로그인 실패 버그 수정** — 다른 모든 페이지는 환경변수 기반 `api`(axios 인스턴스, `src/api/axios.js`)를 사용했지만, `Login.jsx`만 `axios`를 직접 import하여 `http://localhost:8080`을 하드코딩 — production 배포 환경(Vercel)에서 로그인 자체가 항상 localhost로 요청되어 실패하던 문제
   - `Login.jsx`를 공용 `api` 인스턴스로 통일
   - `input`에 `autoComplete` 속성 추가 (브라우저 자격증명 관리자 권한 팝업 관련 개선)
-- [x] **CORS 허용 방식을 와일드카드 패턴으로 변경** — Vercel은 Redeploy/Preview마다 서로 다른 임시 URL(`mini-erp-frontend-{랜덤}-leftdeadman-6379s-projects.vercel.app`)을 생성하는데, 고정 도메인 하나만 허용 목록에 등록해두면 그 외 URL에서는 매번 CORS preflight가 403으로 막히는 문제 발견
+- [x] **CORS 허용 방식을 와일드카드 패턴으로 변경** — Vercel은 Redeploy/Preview마다 서로 다른 임시 URL을 생성하는데, 고정 도메인 하나만 허용 목록에 등록해두면 그 외 URL에서는 매번 CORS preflight가 403으로 막히는 문제 발견
   - `setAllowedOrigins` → `setAllowedOriginPatterns`로 전환, `https://mini-erp-frontend-*.vercel.app` / `https://*-leftdeadman-6379s-projects.vercel.app` 패턴 허용
-  - 이후 어떤 Vercel deployment URL로 접속해도 CORS 통과
 
-### v1.0.2 - 핫픽스_2026.06.
-- [ ] `ImageBox` 등 이미지 URL 생성 로직에 남아있는 `http://localhost:8080` 하드코딩 — 다음 정리 과제
+### v1.0.2 - 핫픽스_2026.07.01
+- [x] **`ImageBox` 이미지 URL 하드코딩 수정** — `ui.jsx`의 `ImageBox` 컴포넌트에서 이미지 경로 생성 시 `http://localhost:8080`이 하드코딩되어 production 환경에서 이미지 미리보기가 깨지던 문제
+  - `http://localhost:8080${preview}` → `${import.meta.env.VITE_API_BASE_URL || ''}${preview}` 로 변경, `axios.js`와 동일한 환경변수 방식으로 통일
 
-### v1.1.0 - 회원가입 · 대시보드_2026.06.
-- [ ] 회원가입 기능 추가
-- [ ] 대시보드 활성화
+### v1.1.0 - 회원가입 · 대시보드_2026.07.01
+- [x] **회원가입 기능 추가**
+  - `POST /api/auth/register` 엔드포인트 신규 추가 (`AuthController`)
+  - 아이디 중복 시 409, 길이 미달 시 400 응답
+  - `AppUser` 생성자 추가 (`@NoArgsConstructor` + 4인자 생성자), 기본 role `USER` 고정
+  - `Login.jsx` — 로그인 하단 "회원가입" 링크 + 회원가입 폼 (뒤로가기 버튼, 가입 성공 시 자동 전환)
+  - 클라이언트 검증: 빈 값·길이·비밀번호 일치, 서버 409 핸들링
+- [x] **대시보드 실DB 연동 활성화**
+  - `Dashboard.jsx` 더미 데이터(`ERP_DATA`) 의존 완전 제거
+  - 현재고(`GET /api/current-stock`), 매출(`GET /api/sales`), 발주(`GET /api/purchase-orders`) 3개 섹션 실연동
+  - `CurrentStockDto` — `productNmKo`, `brandNm`, `warehouseNm`, `storeNm`, `costPrice` 5개 필드 추가
+  - `CurrentStockRepository.findAll()` — `product` / `brand` / `warehouse` / `store` LEFT JOIN으로 이름 정보 포함 응답, `findAvailableForSale()`은 기존 유지
+  - 로딩 중 shimmer 스켈레톤, API 오류 시 섹션별 에러 메시지, 빈 데이터 상태 처리
 
-### v1.2.0 - 디자인 파트_2026.06.
+### v1.2.0 - 정산 고도화_2026.07.
+- [ ] 정산 화면 실DB 연동
+
+### v1.3.0 - 디자인 · 브랜딩_2026.07.
 - [ ] 공식 로고 수정
 
 ---
